@@ -7,19 +7,16 @@
 
 import 'babel-core/register';
 import 'babel-polyfill';
-
-import Koa from 'koa';
-import KoaRouter from 'koa-router';
-import koaBody from 'koa-bodyparser';
+import express from 'express';
+import bodyParser from 'body-parser';
 import mongoose from 'mongoose';
-import { graphqlKoa, graphiqlKoa } from 'apollo-server-koa';
+import { graphqlExpress, graphiqlExpress } from 'apollo-server-express';
 import { makeExecutableSchema } from 'graphql-tools';
 
 import HabitModel from './models/habit';
 
-const app = new Koa();
-const router = new KoaRouter();
-const PORT = 3000;
+const PORT = process.env.PORT || 4000;
+const HOST = process.env.HOST || 'localhost';
 
 // Mongoose
 mongoose.connect('mongodb://localhost/habit');
@@ -71,26 +68,15 @@ const resolvers = {
   },
 };
 
-// Put together a schema
 const schema = makeExecutableSchema({
   typeDefs,
   resolvers,
 });
 
-app.use(koaBody());
+const app = express();
 
-router.post('/graphql', graphqlKoa({ schema }));
+// bodyParser is needed just for POST.
+app.use('/graphql', bodyParser.json(), graphqlExpress({ schema }));
+app.get('/graphiql', graphiqlExpress({ endpointURL: '/graphql' })); // if you want GraphiQL enabled
 
-router.get('/graphql', graphqlKoa({ schema }));
-
-router.get('/graphiql', graphiqlKoa({
-  endpointURL: '/graphql',
-}));
-
-app.use(router.routes());
-
-app.use(router.allowedMethods());
-
-app.listen(PORT, () => {
-  console.log('Go to http://localhost:3000/graphiql to run queries!');
-});
+app.listen(PORT, HOST, () => console.log(`Now browse to ${HOST}:${PORT}/graphiql`));
