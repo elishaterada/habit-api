@@ -2,6 +2,8 @@
 // https://www.npmjs.com/package/apollo-server-koa
 // https://www.apollographql.com/docs/apollo-server/example.html
 // http://graphql.org/learn/queries/
+// http://mongoosejs.com/docs/index.html
+// https://coursework.vschool.io/mongoose-crud/
 
 import 'babel-core/register';
 import 'babel-polyfill';
@@ -9,34 +11,64 @@ import 'babel-polyfill';
 import Koa from 'koa';
 import KoaRouter from 'koa-router';
 import koaBody from 'koa-bodyparser';
+import mongoose from 'mongoose';
 import { graphqlKoa, graphiqlKoa } from 'apollo-server-koa';
 import { makeExecutableSchema } from 'graphql-tools';
+
+import HabitModel from './models/habit';
 
 const app = new Koa();
 const router = new KoaRouter();
 const PORT = 3000;
 
-// Some fake data
-const books = [
-  {
-    title: "Harry Potter and the Sorcerer's stone",
-    author: 'J.K. Rowling',
-  },
-  {
-    title: 'Jurassic Park',
-    author: 'Michael Crichton',
-  },
-];
+// Mongoose
+mongoose.connect('mongodb://localhost/habit');
 
 // The GraphQL schema in string form
 const typeDefs = `
-  type Query { books: [Book] }
-  type Book { title: String, author: String }
+  type Query {
+    habits: [Habit]
+  }
+  type Habit {
+    _id: String!
+    user: String
+    title: String!
+  }
+  input HabitInput {
+    title: String!
+  }
+  type Mutation {
+    createHabit(input: HabitInput!): Habit
+    updateHabit(id: String!, input: HabitInput!): Habit
+    deleteHabit(id: String!): Habit
+  }
 `;
 
 // The resolvers
 const resolvers = {
-  Query: { books: () => books },
+  Query: {
+    habits: () => HabitModel.find(),
+  },
+  Mutation: {
+    createHabit: async (_, { input }) => {
+      const newHabit = new HabitModel(input);
+      return newHabit.save();
+    },
+    updateHabit: async (_, { id, input }) => (
+      HabitModel.findByIdAndUpdate(
+        id,
+        input,
+        { new: true },
+        (err, habit) => {
+          if (err) return err;
+          return habit;
+        },
+      )
+    ),
+    deleteHabit: async (_, { id }) => (
+      HabitModel.findByIdAndRemove(id)
+    ),
+  },
 };
 
 // Put together a schema
