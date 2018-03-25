@@ -3,6 +3,9 @@
 // https://www.apollographql.com/docs/apollo-server/example.html
 // http://graphql.org/learn/queries/
 
+import 'babel-core/register';
+import 'babel-polyfill';
+
 import Koa from 'koa';
 import KoaRouter from 'koa-router';
 import koaBody from 'koa-bodyparser';
@@ -53,7 +56,9 @@ router.get('/graphiql', graphiqlKoa({
 }));
 
 app.use(router.routes());
+
 app.use(router.allowedMethods());
+
 app.listen(PORT, () => {
   console.log('Go to http://localhost:3000/graphiql to run queries!');
 });
