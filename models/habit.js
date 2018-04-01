@@ -4,7 +4,7 @@ const { Schema } = mongoose;
 const { ObjectId } = Schema;
 
 const HabitSchema = new Schema({
-  user: ObjectId,
+  user: String,
   title: String,
 });
 

@@ -12,31 +12,68 @@ import bodyParser from 'body-parser';
 import mongoose from 'mongoose';
 import { graphqlExpress, graphiqlExpress } from 'apollo-server-express';
 import { makeExecutableSchema } from 'graphql-tools';
+import jwt from 'express-jwt';
+import jwks from 'jwks-rsa';
+import cors from 'cors';
 
 import HabitModel from './models/habit';
 
-const PORT = process.env.PORT || 4000;
-const HOST = process.env.HOST || 'localhost';
+require('dotenv').config();
+
+const {
+  AUTH0_DOMAIN,
+  AUTH0_AUDIENCE,
+  PORT,
+  HOST,
+} = process.env;
+
+if (!AUTH0_DOMAIN || !AUTH0_AUDIENCE) {
+  throw 'Make sure you have AUTH0_DOMAIN, and AUTH0_AUDIENCE in your .env file';
+}
 
 // Mongoose
 mongoose.connect('mongodb://localhost/habit');
 
+// Authentication middleware. When used, the
+// Access Token must exist and be verified against
+// the Auth0 JSON Web Key Set
+const jwtCheck = jwt({
+  // Dynamically provide a signing key
+  // based on the kid in the header and
+  // the signing keys provided by the JWKS endpoint.
+  secret: jwks.expressJwtSecret({
+    cache: true,
+    rateLimit: true,
+    jwksRequestsPerMinute: 5,
+    jwksUri: `https://${AUTH0_DOMAIN}/.well-known/jwks.json`,
+  }),
+
+  // Validate the audience and the issuer.
+  audience: AUTH0_AUDIENCE,
+  issuer: `https://${AUTH0_DOMAIN}/`,
+  algorithms: ['RS256'],
+});
+
 // The GraphQL schema in string form
 const typeDefs = `
   type Query {
-    habits: [Habit]
+    habits(user: String!): [Habit]
   }
   type Habit {
     _id: String!
-    user: String
+    user: String!
     title: String!
   }
-  input HabitInput {
+  input HabitCreateInput {
+    user: String!
+    title: String!
+  }
+  input HabitUpdateInput {
     title: String!
   }
   type Mutation {
-    createHabit(input: HabitInput!): Habit
-    updateHabit(id: String!, input: HabitInput!): Habit
+    createHabit(input: HabitCreateInput!): Habit
+    updateHabit(id: String!, input: HabitUpdateInput!): Habit
     deleteHabit(id: String!): Habit
   }
 `;
@@ -44,7 +81,9 @@ const typeDefs = `
 // The resolvers
 const resolvers = {
   Query: {
-    habits: () => HabitModel.find(),
+    habits: (_, { user }) => {
+      return HabitModel.find().where('user').eq(user).exec();
+    },
   },
   Mutation: {
     createHabit: async (_, { input }) => {
@@ -74,6 +113,8 @@ const schema = makeExecutableSchema({
 });
 
 const app = express();
+app.use(cors());
+app.use(jwtCheck);
 
 // bodyParser is needed just for POST.
 app.use('/graphql', bodyParser.json(), graphqlExpress({ schema }));
